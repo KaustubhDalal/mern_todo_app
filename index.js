@@ -1,6 +1,8 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
+const bodyParser = require("body-parser");
+const moment = require("moment");
 
 //init app
 const app = express();
@@ -16,15 +18,27 @@ mongoose.connect(connectionURL).then(() =>{
   console.log(errors)
 });
 
+const todoSchema = mongoose.Schema({
+  title:{type : String,required : true, unique : true,maxlength : 20, minlength : 3,trim : true},
+  desc:String
+},{timestamps : true});
+
+const Todo = mongoose.model("todo",todoSchema);
+
 //view engine
 app.set("view engine", "ejs");
 
 //loading public directory files
 app.use(express.static(path.join(__dirname,"public")));
+
+app.use(bodyParser.urlencoded({extended : true}));
+
 //rendering home page with view engine EJS
-app.get("/",(req,res,next)=>{
+app.get("/",async (req,res,next)=>{
   try{
-    res.render("index",{title : "List todo"});
+    const todos = await Todo.find({}).sort({createdAt : -1});
+    res.locals.moment = moment;
+    res.render("index",{title : "List todo",todos});
   }catch(error){
     res.status(500).json({message:error.message})
   }
@@ -54,6 +68,20 @@ app.get("/delete-todo",(req,res,next)=>{
     res.render("deleteTodo",{title : "Delete todo"});
   }catch(error){
     res.status(500).json({message:error.message})
+  }
+});
+
+app.post("/add-todo",async (req,res,next) =>{
+  try{
+    const {title,desc} = req.body;
+    if(!title){
+      res.status(400).json({message : "Title is required"});
+    }
+    const newTodo = new Todo({title,desc});
+    await newTodo.save();
+    res.redirect("/");
+  }catch(error){
+    res.status(500).json({message : error.message});
   }
 });
 
